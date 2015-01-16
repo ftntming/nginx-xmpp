@@ -40,8 +40,10 @@ static u_char xmpp_stream_feature_sasl_end[] =
 static u_char xmpp_stream_header_end[] =
     "</stream:features>";
 
+#if (NGX_MAIL_SSL)
 static u_char xmpp_starttls_proceed[] =
     "<proceed xmlns=\"urn:ietf:params:xml:ns:xmpp-tls\"/>";
+#endif
 
 static u_char  xmpp_auth_login_username_challenge[] =
     "<challenge xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\">VXNlcm5hbWU6</challenge>";
