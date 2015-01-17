@@ -783,7 +783,8 @@ ngx_mail_auth_http_process_headers(ngx_mail_session_t *s,
             }
 
             if (s->passwd.data == NULL
-                && s->protocol != NGX_MAIL_SMTP_PROTOCOL)
+                && s->protocol != NGX_MAIL_SMTP_PROTOCOL
+                && !(s->protocol == NGX_MAIL_XMPP_PROTOCOL && s->xmpp_mode == NGX_MAIL_XMPP_MODE_S2S))
             {
                 ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                               "auth http server %V did not send password",
@@ -1202,6 +1203,10 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
           + ahcf->header.len
           + sizeof(CRLF) - 1;
 
+    if (s->protocol == NGX_MAIL_XMPP_PROTOCOL) {
+        len += sizeof("XMPP-Mode: c2s") - 1 + sizeof(CRLF) - 1;
+    }
+
     b = ngx_create_temp_buf(pool, len);
     if (b == NULL) {
         return NULL;
@@ -1260,7 +1265,7 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
         *b->last++ = CR; *b->last++ = LF;
     }
 
-    if (s->auth_method == NGX_MAIL_AUTH_NONE) {
+    if (s->protocol == NGX_MAIL_SMTP_PROTOCOL && s->auth_method == NGX_MAIL_AUTH_NONE) {
 
         /* HELO, MAIL FROM, and RCPT TO can't contain CRLF, no need to escape */
 
@@ -1279,6 +1284,15 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
         b->last = ngx_copy(b->last, s->smtp_to.data, s->smtp_to.len);
         *b->last++ = CR; *b->last++ = LF;
 
+    }
+
+    if (s->protocol == NGX_MAIL_XMPP_PROTOCOL) {
+        b->last = ngx_cpymem(b->last, "XMPP-Mode: c2s",
+                             sizeof("XMPP-Mode: c2s") - 1);
+        if (s->xmpp_mode == NGX_MAIL_XMPP_MODE_S2S) {
+            b->last[-3] = 's';
+        }
+        *b->last++ = CR; *b->last++ = LF;
     }
 
     if (ahcf->header.len) {

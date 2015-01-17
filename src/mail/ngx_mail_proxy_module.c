@@ -730,9 +730,12 @@ ngx_mail_proxy_smtp_handler(ngx_event_t *rev)
 }
 
 
-static u_char xmpp_stream_header_stream[] =
+static u_char xmpp_stream_c2s_header_stream[] =
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     "<stream:stream version=\"1.0\" xmlns:stream=\"http://etherx.jabber.org/streams\" xmlns=\"jabber:client\" to=\"";
+static u_char xmpp_stream_s2s_header_stream[] =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<stream:stream version=\"1.0\" xmlns:stream=\"http://etherx.jabber.org/streams\" xmlns=\"jabber:server\" xmlns:db=\"jabber:server:dialback\" to=\"";
 static u_char xmpp_stream_header_stream_end[] =
     "\">";
 static u_char xmpp_stream_header_auth[] =
@@ -791,9 +794,14 @@ ngx_mail_proxy_xmpp_write_handler(ngx_event_t *rev)
 
         s->connection->log->action = "starting xmpp stream";
 
-        line.len = sizeof(xmpp_stream_header_stream) - 1
-                    + s->host.len
-                    + sizeof(xmpp_stream_header_stream_end) - 1;
+        if (s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
+            line.len = sizeof(xmpp_stream_c2s_header_stream) - 1;
+        }
+        else {
+            line.len = sizeof(xmpp_stream_s2s_header_stream) - 1;
+        }
+        line.len += s->host.len
+                 + sizeof(xmpp_stream_header_stream_end) - 1;
 
         line.data = ngx_pnalloc(c->pool, line.len);
         if (line.data == NULL) {
@@ -801,7 +809,13 @@ ngx_mail_proxy_xmpp_write_handler(ngx_event_t *rev)
             return;
         }
 
-        p = ngx_cpymem(line.data, xmpp_stream_header_stream, sizeof(xmpp_stream_header_stream) - 1);
+
+        if (s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
+            p = ngx_cpymem(line.data, xmpp_stream_c2s_header_stream, sizeof(xmpp_stream_c2s_header_stream) - 1);
+        }
+        else {
+            p = ngx_cpymem(line.data, xmpp_stream_s2s_header_stream, sizeof(xmpp_stream_s2s_header_stream) - 1);
+        }
         p = ngx_cpymem(p, s->host.data, s->host.len);
         p = ngx_cpymem(p, xmpp_stream_header_stream_end, sizeof(xmpp_stream_header_stream_end) - 1);
 
@@ -907,10 +921,16 @@ ngx_mail_proxy_xmpp_read_handler(ngx_event_t *rev)
     switch (s->mail_state) {
 
     case ngx_xmpp_stream:
-        s->mail_state = ngx_xmpp_auth_plain;
+        if (s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
+            s->mail_state = ngx_xmpp_auth_plain;
+        }
+        else {
+            s->mail_state = ngx_xmpp_dialback;
+        }
         break;
 
     case ngx_xmpp_auth_plain:
+    case ngx_xmpp_dialback:
         s->connection->read->handler = ngx_mail_proxy_handler;
         s->connection->write->handler = ngx_mail_proxy_handler;
         rev->handler = ngx_mail_proxy_handler;

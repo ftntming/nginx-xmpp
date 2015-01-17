@@ -19,6 +19,8 @@ typedef struct {
 
     ngx_uint_t   auth_methods;
     ngx_str_t    auth_mechanisms;
+
+    ngx_uint_t   mode;
 } ngx_mail_xmpp_srv_conf_t;
 
 

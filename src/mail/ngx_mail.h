@@ -244,6 +244,8 @@ typedef struct {
     ngx_str_t               smtp_from;
     ngx_str_t               smtp_to;
 
+    ngx_uint_t              xmpp_mode;
+
     ngx_str_t               cmd;
 
     ngx_uint_t              command;
@@ -313,6 +315,11 @@ typedef struct {
 #define NGX_XMPP_STREAM        1
 #define NGX_XMPP_STARTTLS      2
 #define NGX_XMPP_AUTH          3
+#define NGX_XMPP_DB_RESULT     4
+#define NGX_XMPP_DB_VERIFY     5
+
+#define NGX_MAIL_XMPP_MODE_C2S 0
+#define NGX_MAIL_XMPP_MODE_S2S 1
 
 
 #define NGX_MAIL_AUTH_PLAIN             0

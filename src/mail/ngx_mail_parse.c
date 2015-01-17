@@ -863,6 +863,8 @@ ngx_mail_xmpp_parse_command(ngx_mail_session_t *s)
 {
     u_char      ch, *p, *c;
     ngx_str_t  *arg;
+    ngx_mail_xmpp_srv_conf_t *xscf;
+
     enum {
         sw_start = 0,
         sw_elem_start,
@@ -911,6 +913,8 @@ ngx_mail_xmpp_parse_command(ngx_mail_session_t *s)
 
             if (ch == ' ' || ch == CR || ch == LF || ch == '>') {
 
+                xscf = ngx_mail_get_module_srv_conf(s, ngx_mail_xmpp_module);
+
                 c = s->cmd_start;
 
                 s->command = 0;
@@ -926,6 +930,31 @@ ngx_mail_xmpp_parse_command(ngx_mail_session_t *s)
                         {
                             s->command = NGX_XMPP_STREAM;
                         }
+
+                        if (xscf->mode == NGX_MAIL_XMPP_MODE_S2S) {
+                            if (c[0] == 'r'
+                                && c[1] == 'e'
+                                && c[2] == 's'
+                                && c[3] == 'u'
+                                && c[4] == 'l'
+                                && c[5] == 't')
+                            {
+                                s->command = NGX_XMPP_DB_RESULT;
+                                goto done;
+                            }
+
+                            if (c[0] == 'v'
+                                && c[1] == 'e'
+                                && c[2] == 'r'
+                                && c[3] == 'i'
+                                && c[4] == 'f'
+                                && c[5] == 'y')
+                            {
+                                s->command = NGX_XMPP_DB_VERIFY;
+                                goto done;
+                            }
+                        }
+
                         break;
 
                     case 8:
@@ -943,7 +972,8 @@ ngx_mail_xmpp_parse_command(ngx_mail_session_t *s)
                         }
 #endif
 
-                        if (c[0] == 'r'
+                        if (xscf->mode == NGX_MAIL_XMPP_MODE_C2S
+                            && c[0] == 'r'
                             && c[1] == 'e'
                             && c[2] == 's'
                             && c[3] == 'p'
@@ -958,7 +988,8 @@ ngx_mail_xmpp_parse_command(ngx_mail_session_t *s)
                         break;
 
                     case 4:
-                        if (c[0] == 'a'
+                        if (xscf->mode == NGX_MAIL_XMPP_MODE_C2S
+                            && c[0] == 'a'
                             && c[1] == 'u'
                             && c[2] == 't'
                             && c[3] == 'h')

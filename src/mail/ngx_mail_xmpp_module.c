@@ -33,6 +33,12 @@ static ngx_str_t  ngx_mail_xmpp_auth_methods_names[] = {
     ngx_null_string   /* NONE */
 };
 
+static ngx_conf_enum_t  ngx_mail_xmpp_mode[] = {
+    { ngx_string("c2s"), NGX_MAIL_XMPP_MODE_C2S },
+    { ngx_string("s2s"), NGX_MAIL_XMPP_MODE_S2S },
+    { ngx_null_string, 0 }
+};
+
 static u_char xmpp_mechanism_start[] =
     "<mechanism>";
 static u_char xmpp_mechanism_end[] =
@@ -73,6 +79,13 @@ static ngx_command_t  ngx_mail_xmpp_commands[] = {
       NGX_MAIL_SRV_CONF_OFFSET,
       offsetof(ngx_mail_xmpp_srv_conf_t, auth_methods),
       &ngx_mail_xmpp_auth_methods },
+
+    { ngx_string("xmpp_mode"),
+      NGX_MAIL_SRV_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_MAIL_SRV_CONF_OFFSET,
+      offsetof(ngx_mail_xmpp_srv_conf_t, mode),
+      &ngx_mail_xmpp_mode },
 
       ngx_null_command
 };
@@ -116,6 +129,7 @@ ngx_mail_xmpp_create_srv_conf(ngx_conf_t *cf)
     }
 
     xscf->client_buffer_size = NGX_CONF_UNSET_SIZE;
+    xscf->mode = NGX_CONF_UNSET_UINT;
 
     return xscf;
 }
@@ -173,6 +187,9 @@ ngx_mail_xmpp_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
             p = ngx_cpymem(p, xmpp_mechanism_end, sizeof(xmpp_mechanism_end) - 1);
         }
     }
+
+    ngx_conf_merge_uint_value(conf->mode,
+                              prev->mode, 0);
 
     return NGX_CONF_OK;
 }

@@ -18,13 +18,18 @@ static ngx_int_t ngx_mail_xmpp_starttls(ngx_mail_session_t *s,
     ngx_connection_t *c);
 static ngx_int_t ngx_mail_xmpp_auth(ngx_mail_session_t *s,
     ngx_connection_t *c);
-static void ngx_mail_xmpp_auth_fixup(ngx_mail_session_t *s,
+static void ngx_mail_xmpp_c2s_auth_fixup(ngx_mail_session_t *s,
+    ngx_connection_t *c);
+static void ngx_mail_xmpp_s2s_auth_fixup(ngx_mail_session_t *s,
     ngx_connection_t *c);
 
 
-static u_char xmpp_stream_header_from[] =
+static u_char xmpp_stream_c2s_header_from[] =
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     "<stream:stream version=\"1.0\" xmlns:stream=\"http://etherx.jabber.org/streams\" xmlns=\"jabber:client\" from=\"";
+static u_char xmpp_stream_s2s_header_from[] =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<stream:stream version=\"1.0\" xmlns:stream=\"http://etherx.jabber.org/streams\" xmlns=\"jabber:server\" xmlns:db=\"jabber:server:dialback\" from=\"";
 static u_char xmpp_stream_header_id[] =
     "\" id=\"";
 static u_char xmpp_stream_header_features[] =
@@ -98,7 +103,7 @@ ngx_mail_xmpp_init_protocol(ngx_event_t *rev)
 {
     ngx_connection_t          *c;
     ngx_mail_session_t        *s;
-    ngx_mail_xmpp_srv_conf_t  *iscf;
+    ngx_mail_xmpp_srv_conf_t  *xscf;
 
     c = rev->data;
 
@@ -121,13 +126,15 @@ ngx_mail_xmpp_init_protocol(ngx_event_t *rev)
             return;
         }
 
-        iscf = ngx_mail_get_module_srv_conf(s, ngx_mail_xmpp_module);
+        xscf = ngx_mail_get_module_srv_conf(s, ngx_mail_xmpp_module);
 
-        s->buffer = ngx_create_temp_buf(c->pool, iscf->client_buffer_size);
+        s->buffer = ngx_create_temp_buf(c->pool, xscf->client_buffer_size);
         if (s->buffer == NULL) {
             ngx_mail_session_internal_server_error(s);
             return;
         }
+
+        s->xmpp_mode = xscf->mode;
     }
 
     s->mail_state = ngx_xmpp_start;
@@ -212,6 +219,11 @@ ngx_mail_xmpp_auth_state(ngx_event_t *rev)
                 do_close = 1;
                 break;
 
+            case NGX_XMPP_DB_RESULT:
+            case NGX_XMPP_DB_VERIFY:
+                ngx_mail_xmpp_s2s_auth_fixup(s, c);
+                return;
+
             default:
                 rc = NGX_MAIL_PARSE_INVALID_COMMAND;
                 break;
@@ -244,7 +256,7 @@ ngx_mail_xmpp_auth_state(ngx_event_t *rev)
     case NGX_DONE:
         s->buffer->pos = s->buffer->last;
 
-        ngx_mail_xmpp_auth_fixup(s, c);
+        ngx_mail_xmpp_c2s_auth_fixup(s, c);
         return;
 
     case NGX_ERROR:
@@ -280,18 +292,18 @@ ngx_mail_xmpp_auth_state(ngx_event_t *rev)
 }
 
 static ngx_int_t
-ngx_mail_xmpp_id(ngx_mail_session_t *s, ngx_connection_t *c)
+ngx_mail_xmpp_id(ngx_mail_session_t *s, ngx_connection_t *c, ngx_str_t *id)
 {
-    s->salt.data = ngx_pnalloc(c->pool,
-                               sizeof("18446744073709551616.") - 1
-                               + NGX_TIME_T_LEN);
-    if (s->salt.data == NULL) {
+    id->data = ngx_pnalloc(c->pool,
+                           sizeof("18446744073709551616.") - 1
+                           + NGX_TIME_T_LEN);
+    if (id->data == NULL) {
         return NGX_ERROR;
     }
 
-    s->salt.len = ngx_sprintf(s->salt.data, "%ul.%T",
-                              ngx_random(), ngx_time())
-                  - s->salt.data;
+    id->len = ngx_sprintf(id->data, "%ul.%T",
+                          ngx_random(), ngx_time())
+                        - id->data;
 
     return NGX_OK;
 }
@@ -299,7 +311,7 @@ ngx_mail_xmpp_id(ngx_mail_session_t *s, ngx_connection_t *c)
 static ngx_int_t
 ngx_mail_xmpp_stream(ngx_mail_session_t *s, ngx_connection_t *c)
 {
-    ngx_str_t *arg;
+    ngx_str_t *arg, id;
     ngx_uint_t len;
     u_char *p, *out;
     ngx_uint_t starttls_on, starttls_only;
@@ -340,18 +352,24 @@ ngx_mail_xmpp_stream(ngx_mail_session_t *s, ngx_connection_t *c)
     }
 #endif
 
-    if (ngx_mail_xmpp_id(s, c) != NGX_OK) {
+    if (ngx_mail_xmpp_id(s, c, &id) != NGX_OK) {
         return NGX_ERROR;
     }
 
     xscf = ngx_mail_get_module_srv_conf(s, ngx_mail_xmpp_module);
 
-    len = sizeof(xmpp_stream_header_from) - 1
-        + s->host.len
+    if (s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
+        len = sizeof(xmpp_stream_c2s_header_from) - 1;
+    }
+    else {
+        len = sizeof(xmpp_stream_s2s_header_from) - 1;
+    }
+
+    len += s->host.len
         + sizeof(xmpp_stream_header_id) - 1
         + sizeof(xmpp_stream_header_features) - 1
         + sizeof(xmpp_stream_header_end) - 1
-        + s->salt.len;
+        + id.len;
 
     if (starttls_on) {
         len += sizeof(xmpp_stream_feature_starttls) - 1;
@@ -359,7 +377,7 @@ ngx_mail_xmpp_stream(ngx_mail_session_t *s, ngx_connection_t *c)
     else if (starttls_only) {
         len += sizeof(xmpp_stream_feature_starttls_required) - 1;
     }
-    if (!starttls_only) {
+    if (!starttls_only && s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
         len += sizeof(xmpp_stream_feature_sasl_start) - 1
              + xscf->auth_mechanisms.len
              + sizeof(xmpp_stream_feature_sasl_end) - 1;
@@ -370,10 +388,15 @@ ngx_mail_xmpp_stream(ngx_mail_session_t *s, ngx_connection_t *c)
         return NGX_ERROR;
     }
 
-    p = ngx_cpymem(p, xmpp_stream_header_from, sizeof(xmpp_stream_header_from) - 1);
+    if (s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
+        p = ngx_cpymem(p, xmpp_stream_c2s_header_from, sizeof(xmpp_stream_c2s_header_from) - 1);
+    }
+    else {
+        p = ngx_cpymem(p, xmpp_stream_s2s_header_from, sizeof(xmpp_stream_s2s_header_from) - 1);
+    }
     p = ngx_cpymem(p, s->host.data, s->host.len);
     p = ngx_cpymem(p, xmpp_stream_header_id, sizeof(xmpp_stream_header_id) - 1);
-    p = ngx_cpymem(p, s->salt.data, s->salt.len);
+    p = ngx_cpymem(p, id.data, id.len);
     p = ngx_cpymem(p, xmpp_stream_header_features, sizeof(xmpp_stream_header_features) - 1);
     if (starttls_on) {
         p = ngx_cpymem(p, xmpp_stream_feature_starttls, sizeof(xmpp_stream_feature_starttls) - 1);
@@ -381,7 +404,7 @@ ngx_mail_xmpp_stream(ngx_mail_session_t *s, ngx_connection_t *c)
     else if (starttls_only) {
         p = ngx_cpymem(p, xmpp_stream_feature_starttls_required, sizeof(xmpp_stream_feature_starttls_required) - 1);
     }
-    if (!starttls_only) {
+    if (!starttls_only && s->xmpp_mode == NGX_MAIL_XMPP_MODE_C2S) {
         p = ngx_cpymem(p, xmpp_stream_feature_sasl_start, sizeof(xmpp_stream_feature_sasl_start) - 1);
         p = ngx_cpymem(p, xscf->auth_mechanisms.data, xscf->auth_mechanisms.len);
         p = ngx_cpymem(p, xmpp_stream_feature_sasl_end, sizeof(xmpp_stream_feature_sasl_end) - 1);
@@ -463,7 +486,7 @@ ngx_mail_xmpp_auth(ngx_mail_session_t *s, ngx_connection_t *c)
 }
 
 void
-ngx_mail_xmpp_auth_fixup(ngx_mail_session_t *s, ngx_connection_t *c)
+ngx_mail_xmpp_c2s_auth_fixup(ngx_mail_session_t *s, ngx_connection_t *c)
 {
     u_char *p, *login;
     size_t  len;
@@ -485,6 +508,18 @@ ngx_mail_xmpp_auth_fixup(ngx_mail_session_t *s, ngx_connection_t *c)
     s->login.data = login;
     s->login.len = len;
     s->host.len = 0;
+
+    ngx_mail_auth(s, c);
+}
+
+void
+ngx_mail_xmpp_s2s_auth_fixup(ngx_mail_session_t *s, ngx_connection_t *c)
+{
+    s->login.data = s->host.data;
+    s->login.len = s->host.len;
+    s->host.len = 0;
+
+    s->auth_method = NGX_MAIL_AUTH_NONE;
 
     ngx_mail_auth(s, c);
 }
