@@ -54,6 +54,20 @@ static ngx_mail_protocol_t  ngx_mail_xmpp_protocol = {
         "<internal-server-error xmlns=\"urn:ietf:params:xml:ns:xmpp-streams\"/>"
         "</stream:error>"
         "</stream:stream>"
+    ),
+    ngx_string(
+        "<stream:error>"
+        "<policy-violation xmlns=\"urn:ietf:params:xml:ns:xmpp-streams\"/>"
+        "<text xmlns=\"urn:ietf:params:xml:ns:xmpp-streams\" xml:lang=\"en\">SSL certificate error</text>"
+        "</stream:error>"
+        "</stream:stream>"
+    ),
+    ngx_string(
+        "<stream:error>"
+        "<policy-violation xmlns=\"urn:ietf:params:xml:ns:xmpp-streams\"/>"
+        "<text xmlns=\"urn:ietf:params:xml:ns:xmpp-streams\" xml:lang=\"en\">No required SSL certificate</text>"
+        "</stream:error>"
+        "</stream:stream>"
     )
 };
 
