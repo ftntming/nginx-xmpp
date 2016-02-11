@@ -1,3 +1,7 @@
+# IMPORTANT NOTICE
+
+Since [FastMail no longer have a XMPP service](https://blog.fastmail.com/2015/11/16/shutting-down-our-xmpp-chat-service/), I have no reason to continue updating this to the latest nginx. You are welcome to take this on yourself, or ask me to help out and I'll see what I can do.
+
 # nginx-xmpp
 
 This is [nginx](http://nginx.org/en/) with [XMPP](https://tools.ietf.org/html/rfc6120) proxy support. It adds XMPP to the list of protocols supported by the mail module, allowing nginx to do TLS and auth termination for XMPP servers.
