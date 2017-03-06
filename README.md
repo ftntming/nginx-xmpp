@@ -76,6 +76,8 @@ nginx then connects to the backend service, authenticates on behalf of the user 
 
 (incidentally, nginx also has as [stream module](https://nginx.org/en/docs/stream/ngx_stream_core_module.html), which is like the mail module but without the application protocol and auth handshake support. You'd use that to let nginx act as a "dumb" load balancer and TLS terminator.)
 
+See [this howto](https://www.nginx.com/resources/admin-guide/mail-proxy/) for more information on the mail module and in particular, how to construct your auth service.
+
 ## TODO
 
 - [ ] federation/S2S
