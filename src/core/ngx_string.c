@@ -29,6 +29,22 @@ ngx_strlow(u_char *dst, u_char *src, size_t n)
 }
 
 
+size_t
+ngx_strnlen(u_char *p, size_t n)
+{
+    size_t  i;
+
+    for (i = 0; i < n; i++) {
+
+        if (p[i] == '\0') {
+            return i;
+        }
+    }
+
+    return n;
+}
+
+
 u_char *
 ngx_cpystrn(u_char *dst, u_char *src, size_t n)
 {
@@ -1563,7 +1579,7 @@ ngx_escape_uri(u_char *dst, u_char *src, size_t size, ngx_uint_t type)
         n = 0;
 
         while (size) {
-            if (escape[*src >> 5] & (1 << (*src & 0x1f))) {
+            if (escape[*src >> 5] & (1U << (*src & 0x1f))) {
                 n++;
             }
             src++;
@@ -1574,7 +1590,7 @@ ngx_escape_uri(u_char *dst, u_char *src, size_t size, ngx_uint_t type)
     }
 
     while (size) {
-        if (escape[*src >> 5] & (1 << (*src & 0x1f))) {
+        if (escape[*src >> 5] & (1U << (*src & 0x1f))) {
             *dst++ = '%';
             *dst++ = hex[*src >> 4];
             *dst++ = hex[*src & 0xf];
