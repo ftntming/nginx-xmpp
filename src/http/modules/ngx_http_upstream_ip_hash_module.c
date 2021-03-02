@@ -161,7 +161,7 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
 
     /* TODO: cached */
 
-    ngx_http_upstream_rr_peers_wlock(iphp->rrp.peers);
+    ngx_http_upstream_rr_peers_rlock(iphp->rrp.peers);
 
     if (iphp->tries > 20 || iphp->rrp.peers->single) {
         ngx_http_upstream_rr_peers_unlock(iphp->rrp.peers);
@@ -199,9 +199,12 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
         }
 
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, pc->log, 0,
-                       "get ip hash peer, hash: %ui %04XA", p, m);
+                       "get ip hash peer, hash: %ui %04XL", p, (uint64_t) m);
+
+        ngx_http_upstream_rr_peer_lock(iphp->rrp.peers, peer);
 
         if (peer->down) {
+            ngx_http_upstream_rr_peer_unlock(iphp->rrp.peers, peer);
             goto next;
         }
 
@@ -209,6 +212,12 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
             && peer->fails >= peer->max_fails
             && now - peer->checked <= peer->fail_timeout)
         {
+            ngx_http_upstream_rr_peer_unlock(iphp->rrp.peers, peer);
+            goto next;
+        }
+
+        if (peer->max_conns && peer->conns >= peer->max_conns) {
+            ngx_http_upstream_rr_peer_unlock(iphp->rrp.peers, peer);
             goto next;
         }
 
@@ -234,6 +243,7 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
         peer->checked = now;
     }
 
+    ngx_http_upstream_rr_peer_unlock(iphp->rrp.peers, peer);
     ngx_http_upstream_rr_peers_unlock(iphp->rrp.peers);
 
     iphp->rrp.tried[n] |= m;
@@ -259,6 +269,7 @@ ngx_http_upstream_ip_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     uscf->flags = NGX_HTTP_UPSTREAM_CREATE
                   |NGX_HTTP_UPSTREAM_WEIGHT
+                  |NGX_HTTP_UPSTREAM_MAX_CONNS
                   |NGX_HTTP_UPSTREAM_MAX_FAILS
                   |NGX_HTTP_UPSTREAM_FAIL_TIMEOUT
                   |NGX_HTTP_UPSTREAM_DOWN;

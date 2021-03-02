@@ -14,11 +14,15 @@ typedef DWORD               ngx_pid_t;
 
 
 #define ngx_getpid          GetCurrentProcessId
+#define ngx_getppid()       0
 #define ngx_log_pid         ngx_pid
 
 
 #define NGX_PROCESS_SYNC_NAME                                                 \
     (sizeof("ngx_cache_manager_mutex_") + NGX_INT32_LEN)
+
+
+typedef uint64_t            ngx_cpuset_t;
 
 
 typedef struct {
@@ -70,6 +74,7 @@ extern ngx_int_t            ngx_last_process;
 extern ngx_process_t        ngx_processes[NGX_MAX_PROCESSES];
 
 extern ngx_pid_t            ngx_pid;
+extern ngx_pid_t            ngx_parent;
 
 
 #endif /* _NGX_PROCESS_H_INCLUDED_ */
