@@ -546,11 +546,13 @@ if [ $MAIL = YES ]; then
         modules="$modules $MAIL_SSL_MODULE"
         MAIL_DEPS="$MAIL_DEPS $MAIL_SSL_DEPS"
         MAIL_SRCS="$MAIL_SRCS $MAIL_SSL_SRCS"
+    else
+        MAIL_DEPS=
     fi
 
     if [ $MAIL_POP3 = YES ]; then
         modules="$modules $MAIL_POP3_MODULE"
-        MAIL_DEPS="$MAIL_DEPS $MAIL_POP3_DEPS"
+        MAIL_DEPS="$MAIL_DEPS $MAIL_POP3_DEPS \
              $HTTP_RANGE_BODY_FILTER_MODULE \
              $HTTP_NOT_MODIFIED_FILTER_MODULE \
              $HTTP_SLICE_FILTER_MODULE"
